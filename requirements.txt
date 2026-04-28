@@ -1,0 +1,10 @@
+numpy
+pandas
+sentence-transformers
+torch
+tqdm
+python-terrier
+pyt-splade
+pylate
+jupyterlab
+ranx

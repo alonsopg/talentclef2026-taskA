@@ -1,0 +1,8 @@
+team_name=alonso
+k=100
+label=mixed_en_splade_es_colbert
+en_pipeline=JobBERT>>SPLADE_RRF
+es_pipeline=JobBERT>>ColBERT
+en_run=runs/official_submissions/mixed_en_splade_es_colbert/run_en-en_alonso.trec
+es_run=runs/official_submissions/mixed_en_splade_es_colbert/run_es-es_alonso.trec
+zip=runs/official_submissions/mixed_en_splade_es_colbert/alonso_mixed_en_splade_es_colbert_at100.zip
