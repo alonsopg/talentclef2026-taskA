@@ -17,6 +17,7 @@ The public repository includes:
 - the official TalentCLEF evaluation script
 - the development results table used for model selection
 - the final official run files submitted to Codabench
+- the working-notes paper source and compiled PDF
 
 The TalentCLEF data itself is **not** included here.
 
@@ -34,6 +35,11 @@ The TalentCLEF data itself is **not** included here.
 │   ├── TASK-A-Augmentation-EN-ES-V1.ipynb
 │   ├── TASK-A-JobBERT-Dense-EN-ES-V1.ipynb
 │   └── TASK-A-PyTerrier-EN-ES-V1.ipynb
+├── paper/
+│   ├── README.md
+│   ├── paper.tex
+│   ├── references.bib
+│   └── paper.pdf
 ├── results/
 │   └── dev/
 │       └── reconstructed_dev_metrics_at50.csv
@@ -75,6 +81,15 @@ pip install -r requirements.txt
 ```
 
 The official evaluator has its own minimal dependency file in `evaluation/requirements.txt`.
+
+## Paper
+
+The working-notes paper source and compiled PDF are available in:
+
+- `paper/paper.tex`
+- `paper/paper.pdf`
+
+See `paper/README.md` for the minimal files required to rebuild the paper in the CEURART format.
 
 ## Main Files
 

@@ -1,0 +1,285 @@
+\documentclass[
+]{ceurart}
+
+\sloppy
+
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{multirow}
+\usepackage{url}
+\lstset{breaklines=true}
+
+\begin{document}
+
+\copyrightyear{2026}
+\copyrightclause{Copyright for this paper by its authors.
+Use permitted under Creative Commons License Attribution 4.0
+International (CC BY 4.0).}
+
+\conference{CLEF 2026 Working Notes, September 21--24, 2026, Jena, Germany}
+
+\title{Hybrid Dense-Sparse Retrieval and Re-Ranking for Multilingual Resume Retrieval from Job Descriptions}
+\tnotemark[1]
+\subtitle{Working Notes for TalentCLEF 2026 Task A}
+\tnotetext[1]{Search runs and code are available at \url{https://github.com/alonsopg/talentclef2026-taskA}.}
+
+\author{Alonso Palomino}[email=mail@alonsopg.com]
+\cormark[1]
+\cortext[1]{Corresponding author. Email: \href{mailto:mail@alonsopg.com}{mail@alonsopg.com}.}
+
+\begin{abstract}
+This paper describes a submission to TalentCLEF 2026 Task A, the contextualized
+job-person matching task. The objective is to rank candidate resumes for a given
+job description in a multilingual setting. The study evaluates a two-stage retrieval architecture
+based on JobBERT as the first-stage dense retriever and compares two re-ranking strategies:
+a sparse lexical re-ranker based on SPLADE and a late-interaction re-ranker based on
+multilingual ColBERT. On the official development split, the strongest overall system
+is obtained with JobBERT followed by SPLADE-based reciprocal-rank-fusion re-ranking.
+ColBERT remains competitive in Spanish and provides a more interaction-rich alternative
+for long-form resume matching. The best dense-sparse system is used as the primary run.
+\end{abstract}
+
+\begin{keywords}
+TalentCLEF \sep
+job-person matching \sep
+resume retrieval \sep
+dense retrieval \sep
+SPLADE \sep
+ColBERT \sep
+multilingual information retrieval
+\end{keywords}
+
+\maketitle
+
+\section{Introduction}
+
+TalentCLEF 2026 Task A focuses on contextualized job-person matching, where each
+query is a full job description and the objective is to retrieve and rank the most
+relevant candidate resumes. This setting is particularly challenging because job
+descriptions and resumes are long, structured, multilingual, and information-dense.
+As a result, effective systems need to capture both broad semantic compatibility and
+precise lexical evidence such as skills, tools, certifications, and role-specific terms.
+
+Viewed more broadly, retrieval over skill requirements and competence descriptions
+extends beyond job-to-candidate matching. Closely related problems also arise in
+educational settings, where systems must identify assessment items that measure
+targeted vocational skills. Prior work has shown that semantic retrieval and
+re-ranking can support vocational exam assembly by retrieving relevant test items
+from validated item banks and by improving ranking quality under practical constraints
+such as bias control \cite{palomino2024edtec,palomino2025bias}. This broader perspective
+highlights that skill-aware retrieval methods are useful wherever textual evidence
+must be matched to explicit competency requirements.
+
+For this reason, a two-stage architecture is adopted. In the first stage,
+JobBERT is used as a dense retriever to generate a high-quality candidate set.
+In the second stage, the candidates are re-ranked using either a sparse lexical
+signal from SPLADE or a late-interaction signal from multilingual ColBERT.
+This design makes it possible to study two complementary ways of strengthening
+the first-stage semantic ranking.
+
+The paper addresses the following research question: can a two-stage multilingual
+retrieval pipeline improve resume retrieval from job descriptions over a strong
+JobBERT baseline by adding a second-stage re-ranker with either sparse lexical
+matching or late interaction? The working hypothesis is that second-stage re-ranking
+will improve retrieval effectiveness over JobBERT alone, and that sparse re-ranking
+with SPLADE will be more robust overall than zero-shot multilingual ColBERT because
+explicit lexical evidence such as skills, tools, and credentials remains central to
+resume relevance.
+
+The main finding is that re-ranking helps, but the choice of second-stage model matters:
+SPLADE is the most robust overall, while multilingual ColBERT remains competitive,
+especially in Spanish.
+
+\section{Task Description}
+
+TalentCLEF 2026 Task A evaluates contextualized job-person matching in a multilingual
+retrieval setting. Given a job description, the system must rank candidate resumes
+according to their relevance to the job requirements. The submission focuses on the monolingual
+\texttt{en-en} and \texttt{es-es} tracks.
+
+The official submission format follows the TREC run-file convention, with one run file
+per language pair. Submissions are evaluated with standard information retrieval
+metrics, with Mean Average Precision (MAP) as the main ranking criterion and nDCG
+reported as an additional metric \cite{talentclef2026eval,talentclef2026format}.
+
+\section{Data and Preprocessing}
+
+\subsection{Official Data}
+
+This work uses the official TalentCLEF 2026 Task A development and test sets
+\cite{talentclef2026task}. The development data contains 10 queries and 472 resumes
+for each of English and Spanish. The test data contains 40 queries and 476 resumes
+for each of the two languages.
+
+\subsection{Resume Text Construction}
+
+The final systems do not use the earlier ESCO-based or knowledge-graph-based re-ranking
+components explored in preliminary experiments. Instead, a text representation is built
+for each resume by extracting and concatenating the main resume sections, including
+profile, experience, skills, education, certifications, and languages. Both resumes
+and job descriptions are normalized before retrieval.
+
+This preprocessing design keeps the retrieval pipeline simple and reproducible while
+preserving the information most likely to matter for candidate ranking.
+
+\section{Method}
+
+\subsection{First-Stage Dense Retrieval with JobBERT}
+
+As the first-stage retriever, this submission uses \texttt{TechWolf/JobBERT-v3}, a dense encoder
+from the JobBERT family developed for labor-market matching tasks \cite{jobbert}.
+JobBERT encodes both job descriptions and resume representations into a shared
+embedding space. Candidate resumes are then ranked by similarity to the job-description
+embedding.
+
+Conceptually, JobBERT is used here as a domain-adapted bi-encoder. The job description
+and each resume are encoded independently into dense vectors, which makes retrieval
+efficient because resume embeddings can be computed in advance and compared to the
+query embedding with a vector-similarity operation. Its main strength is broad semantic
+matching when compatible roles or skills are expressed with different wording.
+
+\subsection{Sparse Candidate Re-Ranking with SPLADE}
+
+To complement dense retrieval with stronger lexical matching, JobBERT candidates are re-ranked
+using SPLADE \cite{splade,spladev2}. SPLADE produces sparse lexical
+representations that retain neural expressiveness while remaining sensitive to exact
+or near-exact term overlap.
+
+Unlike a dense bi-encoder, SPLADE maps text into a high-dimensional sparse vector
+over the vocabulary. Important terms receive larger weights, and the model can also
+activate related expansion terms learned by the transformer. This makes SPLADE useful
+for re-ranking in settings where exact evidence such as software names, certifications,
+or specific skills can strongly influence relevance.
+
+SPLADE is applied over the JobBERT candidate pool and the two ranking signals are combined
+through reciprocal-rank fusion over the candidate set. This yields the strongest
+overall system on development.
+
+\subsection{Late-Interaction Re-Ranking with ColBERT}
+
+As a more interaction-rich alternative, the study evaluates a pretrained multilingual
+ColBERT re-ranker using \texttt{jinaai/jina-colbert-v2} \cite{colbert,jinacolbert}.
+Unlike bi-encoder retrieval, ColBERT preserves token-level interactions between
+query and document representations and is therefore appealing for long-form resume
+ranking, where local skill- and role-level matches may be important.
+
+More specifically, ColBERT encodes query tokens and document tokens separately and
+delays most of the interaction until scoring time. For each query token, the model
+finds the best matching document token and then aggregates those token-level matches
+into a final relevance score. This late-interaction design is more expensive than
+single-vector retrieval, but can capture fine-grained alignments important in resume ranking.
+
+ColBERT is applied as a second-stage re-ranker over the top JobBERT candidates. This
+variant is not the strongest overall system, but it is highly competitive in Spanish
+and provides a stronger innovation story than a purely dense-sparse hybrid.
+
+\section{Experimental Setup}
+
+\subsection{Systems Compared}
+
+The following systems are compared on the official development split:
+
+\begin{itemize}
+  \item \textbf{BM25}: lexical baseline.
+  \item \textbf{SPLADE}: sparse neural baseline.
+  \item \textbf{JobBERT}: dense first-stage retrieval baseline.
+  \item \textbf{JobBERT\texorpdfstring{$\rightarrow$}{->}SPLADE}: candidate re-ranking with sparse lexical evidence.
+  \item \textbf{JobBERT\texorpdfstring{$\rightarrow$}{->}ColBERT}: candidate re-ranking with late interaction.
+\end{itemize}
+
+Augmentation and compact-query variants were also explored in preliminary experiments,
+but these did not outperform the main re-ranking systems and are therefore treated as
+secondary ablations.
+
+\subsection{Implementation}
+
+JobBERT retrieval is implemented with SentenceTransformers \cite{reimers2019sentencebert}.
+PyTerrier is used for sparse retrieval experiments, and the SPLADE re-ranker is
+implemented through the \texttt{pyt\_splade} stack. The late-interaction re-ranker is
+implemented with a pretrained multilingual ColBERT model through the PyLate stack.
+
+\section{Development Results}
+
+Table~\ref{tab:dev-results} summarizes the main development results used for model
+selection.
+
+\begin{table}[t]
+  \centering
+  \caption{Main development results on TalentCLEF 2026 Task A.}
+  \label{tab:dev-results}
+  \begin{tabular}{llcc}
+    \toprule
+    Language & System & MAP@50 & nDCG@50 \\
+    \midrule
+    en & JobBERT & 0.7744 & 0.9245 \\
+    en & JobBERT$\rightarrow$SPLADE\_RRF & 0.7808 & 0.9294 \\
+    en & JobBERT$\rightarrow$ColBERT & 0.7728 & 0.9225 \\
+    \midrule
+    es & JobBERT & 0.7299 & 0.8962 \\
+    es & JobBERT$\rightarrow$SPLADE\_RRF & 0.7350 & 0.9034 \\
+    es & JobBERT$\rightarrow$ColBERT & 0.7348 & 0.9086 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The results show that JobBERT is already a strong dense baseline. Re-ranking with
+SPLADE yields the best overall MAP in both English and Spanish. The ColBERT re-ranker
+does not surpass the SPLADE re-ranker overall, but in Spanish it is nearly tied in MAP
+and slightly stronger in nDCG. This makes ColBERT an attractive additional variant for
+analysis and submission.
+
+\section{Analysis}
+
+The experiments suggest that the strongest gains come from combining dense semantic
+retrieval with a complementary re-ranking signal. SPLADE improves on the dense retriever
+by reinforcing exact lexical evidence, which remains highly relevant in resume matching.
+This is especially useful when important job requirements are expressed through specific
+skills, technologies, tools, or credentials.
+
+ColBERT offers a different advantage. By preserving token-level interactions, it is
+better aligned with the long-document nature of job descriptions and resumes than a
+plain single-vector model. Although it was not the best system overall on development,
+its strong Spanish performance suggests that late interaction is a viable direction for
+future work in multilingual job-person matching.
+
+Several additional variants did not help. Standalone sparse retrieval was clearly
+weaker than JobBERT, long query augmentations were often neutral because they were
+truncated by the encoder, and compact rewrite variants were not robust, especially in
+Spanish. These negative results suggest that extra complexity is useful only when the
+added signal is both informative and compatible with the retrieval model's input limits.
+
+\section{Limitations}
+
+This work has several limitations. The public development set is small, which makes
+model selection fragile; the public data does not expose gender labels, which limits
+direct fairness analysis; and ColBERT was not fine-tuned because public supervision
+is limited and zero-shot re-ranking was already computationally demanding.
+
+\section{Conclusion}
+
+A two-stage retrieval framework for TalentCLEF 2026 Task A was presented based on
+JobBERT first-stage retrieval and alternative re-ranking strategies. The best
+development results were obtained with a hybrid dense-sparse re-ranking approach using
+SPLADE, while multilingual ColBERT provided a competitive and more distinctive
+late-interaction alternative, especially in Spanish. These findings highlight the
+value of combining domain-adapted dense retrieval with complementary re-ranking signals
+for contextualized multilingual job-person matching. In relation to the research
+question, the results indicate that second-stage re-ranking can improve over a strong
+JobBERT baseline in multilingual resume retrieval from job descriptions. The working
+hypothesis is therefore only partially confirmed: re-ranking was beneficial overall,
+and SPLADE was the most robust approach, while zero-shot multilingual ColBERT remained
+competitive but did not consistently surpass the dense-sparse hybrid. Overall, strong
+semantic retrieval remains the foundation of this task, and its best results come from
+adding a complementary lexical or late-interaction signal rather than from increasing
+complexity indiscriminately.
+
+\section*{Declaration on Generative AI}
+During the preparation of this work, the author used OpenAI GPT-5.4/Codex in
+order to help structure the manuscript, convert a paper outline into a LaTeX draft,
+and revise wording. After using this tool, the author reviewed and edited the
+content as needed and takes full responsibility for the publication's content.
+
+\bibliography{references}
+
+\end{document}
